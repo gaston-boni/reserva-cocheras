@@ -143,7 +143,7 @@ header{background:var(--navy);height:54px;padding:0 24px;display:flex;align-item
     <div class="login-logo"><svg viewBox="0 0 20 20"><rect x="1" y="1" width="7" height="7"/><rect x="12" y="1" width="7" height="7"/><rect x="1" y="12" width="7" height="7"/><rect x="12" y="12" width="7" height="7"/></svg></div>
     <div class="login-title">Cocheras · Enviopack</div>
     <div class="login-sub">Ingresá tu email para acceder al sistema de reservas</div>
-    <div class="login-badge" id="loginBadge">🔒 Acceso solo para Management</div>
+    <div class="login-badge" id="loginBadge">🔒 Acceso solo para empleados</div>
     <input class="login-inp" id="loginEmail" type="email" placeholder="tu@enviopack.com" onkeydown="if(event.key==='Enter')doLogin()">
     <button class="login-btn" onclick="doLogin()">Ingresar</button>
     <div class="login-err" id="loginErr"></div>
@@ -242,8 +242,8 @@ const SHEET_NAME = "Reservas";
 const GAS_URL    = "https://script.google.com/macros/s/AKfycbxsqAoT73c2lA7f1KN3PlsiTEMIawxx--R4MbdOv9rLYvEN3WvCBDM4gpaSCFPjNTs9/exec";
 
 // Fase de acceso: "management_only" o "all_org"
-const ACCESS_MODE = "all_org";
-const ORG_DOMAINS = ["enviopack.com","logispack.com"];
+const ACCESS_MODE = "management_only";
+const ORG_DOMAINS = ["enviopack.com","logispack.com","logispack.com.ar"];
 
 const OWNERS = {
   V1:{ name:"Santiago Lopez",   emails:["santiago.lopez@enviopack.com"] },
@@ -282,7 +282,7 @@ function doLogin(){
   if(!checkAccess(email)){
     document.getElementById("loginErr").textContent=
       ACCESS_MODE==="management_only"
-        ? "Por ahora solo pueden ingresar los titulares de Management."
+        ? "Solo pueden ingresar empleados de Enviopack y Logispack."
         : "Solo se permiten correos @enviopack.com o @logispack.com.";
     return;
   }
@@ -362,12 +362,22 @@ async function loadWeek(){
       }
       if(dateStr<weekStart||dateStr>weekEnd) return;
       const key=`${spotId}_${dateStr}`;
+      // Horarios pueden venir como Date(1899,11,30,8,0,0) desde Sheets
+      function parseTime(val){
+        if(!val) return "08:00";
+        const s=String(val);
+        if(s.startsWith("Date(")){
+          const p=s.replace("Date(","").replace(")","").split(",");
+          return String(parseInt(p[3]||0)).padStart(2,"0")+":"+String(parseInt(p[4]||0)).padStart(2,"0");
+        }
+        return s.slice(0,5);
+      }
       bookings[key]=[{
         rowId: String(c[0]?.v||""),
         name:  String(c[3]?.v||""),
         email: String(c[4]?.v||""),
-        from:  String(c[5]?.v||"08:00"),
-        to:    String(c[6]?.v||"18:00"),
+        from:  parseTime(c[5]?.v),
+        to:    parseTime(c[6]?.v),
       }];
     });
   }catch(err){console.warn("loadWeek:",err);}
@@ -423,7 +433,7 @@ function renderGrid(){
         const isOwnerBk=owner&&isOwner(spot.id,b.email);
         const cls=isOwnerBk?"owner":isMine?"mine":"other";
         const el=document.createElement("div"); el.className="booking "+cls;
-        el.innerHTML=`<div class="bname">${b.name}</div><div class="btime">${b.from}–${b.to}</div>
+        el.innerHTML=`<div class="bname">${b.name}</div><div class="btime">Reservada</div>
           ${isMine?`<button class="bdel" onclick="delBk('${key}','${b.rowId}',event)">✕</button>`:""}`;
         cell.appendChild(el);
         // Titular ve botón de reclamo si no es su reserva
